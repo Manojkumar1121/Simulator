@@ -1,0 +1,58 @@
+/* Cyber-Academic Theme Styles for Moore-Mealy Simulator */
+
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+::-webkit-scrollbar-track {
+    background: #090d16;
+}
+::-webkit-scrollbar-thumb {
+    background: #334155;
+    border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+    background: #0ea5e9;
+}
+
+/* Glassmorphism utility enhancements */
+.glass-panel {
+    position: relative;
+    overflow: hidden;
+    background: rgba(21, 29, 48, 0.85);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+}
+
+.glass-panel::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: radial-gradient(circle at top left, rgba(56, 189, 248, 0.04), transparent 45%);
+    pointer-events: none;
+}
+
+/* SVG D3.js Styling */
+.node circle.main-circle {
+    transition: stroke 0.25s ease, stroke-width 0.25s ease, filter 0.25s ease;
+}
+
+.node text {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    user-select: none;
+    pointer-events: none;
+}
+
+.link {
+    transition: stroke 0.25s ease, stroke-width 0.25s ease;
+}
+
+/* Tape head styling */
+.tape-cell {
+    user-select: none;
+}

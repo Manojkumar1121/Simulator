@@ -1,0 +1,133 @@
+import os
+import sys
+
+# Ensure Python can resolve the 'backend' package regardless of where this is run from
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+from flask import Flask, send_from_directory, jsonify, request
+
+# Point Flask's static and template folders to the frontend directory
+# This allows us to serve the frontend purely from the Flask app without needing Node.js
+FRONTEND_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'frontend'))
+
+app = Flask(__name__, static_folder=FRONTEND_DIR, static_url_path='')
+
+@app.route('/')
+def index():
+    """Serve the main frontend HTML file."""
+    return send_from_directory(FRONTEND_DIR, 'index.html')
+
+@app.route('/api/health')
+def health_check():
+    """Simple API health check endpoint."""
+    return jsonify({"status": "ok", "message": "Moore-Mealy Backend is running!"})
+
+from backend.validation.validator import validate_machine
+from backend.simulation.simulator import simulate_machine, verify_equivalence
+from backend.serialization.json_serializer import deserialize_machine, serialize_machine
+from backend.algorithms.moore_to_mealy import convert_moore_to_mealy
+from backend.algorithms.mealy_to_moore import convert_mealy_to_moore
+
+@app.route('/api/convert', methods=['POST'])
+def api_convert_machine():
+    """API Contract: Converts a machine and returns the result + animation steps."""
+    try:
+        data = request.json.get('machine')
+        target_type = (request.json.get('target_type') or '').lower()
+        
+        machine = deserialize_machine(data)
+        
+        if machine.type == 'moore' and (target_type == 'mealy' or not target_type):
+            converted, steps = convert_moore_to_mealy(machine)
+            return jsonify({
+                "converted_machine": serialize_machine(converted),
+                "steps": steps
+            })
+        elif machine.type == 'mealy' and (target_type == 'moore' or not target_type):
+            converted, steps = convert_mealy_to_moore(machine)
+            return jsonify({
+                "converted_machine": serialize_machine(converted),
+                "steps": steps
+            })
+        elif machine.type == 'moore' and target_type == 'moore':
+            return jsonify({
+                "converted_machine": serialize_machine(machine),
+                "steps": [{
+                    "step": 1,
+                    "description": "DFA mapped to equivalent Moore machine with binary outputs (1 for final states, 0 for non-final states).",
+                    "highlight_nodes": [s.name for s in machine.states if machine.outputs.get(s) == '1'],
+                    "highlight_edges": []
+                }]
+            })
+        elif machine.type == 'mealy' and target_type == 'mealy':
+            return jsonify({
+                "converted_machine": serialize_machine(machine),
+                "steps": [{
+                    "step": 1,
+                    "description": "Machine is already a Mealy machine.",
+                    "highlight_nodes": [],
+                    "highlight_edges": []
+                }]
+            })
+        else:
+            return jsonify({"error": f"Invalid conversion requested: from {machine.type} to {target_type}."}), 400
+            
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
+@app.route('/api/validate', methods=['POST'])
+def api_validate_machine():
+    """API Contract: Validates a machine against all theoretical rules."""
+    try:
+        data = request.json.get('machine')
+        machine = deserialize_machine(data)
+        errors = validate_machine(machine)
+        
+        if errors:
+            return jsonify({"valid": False, "errors": errors})
+        return jsonify({"valid": True, "errors": []})
+    except Exception as e:
+        return jsonify({"valid": False, "errors": [str(e)]})
+
+@app.route('/api/simulate', methods=['POST'])
+def api_simulate_string():
+    """API Contract: Simulates a string on the machine step-by-step."""
+    try:
+        data = request.json.get('machine')
+        input_string = request.json.get('input_string', "")
+        
+        machine = deserialize_machine(data)
+        
+        # Ensure it's valid before simulating
+        errors = validate_machine(machine)
+        if errors:
+            return jsonify({"error": "Cannot simulate an invalid machine.", "validation_errors": errors}), 400
+            
+        result = simulate_machine(machine, input_string)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
+@app.route('/api/batch_test', methods=['POST'])
+def api_batch_test():
+    """API Contract: Compares original and converted machine on batch test strings."""
+    try:
+        data_a = request.json.get('original_machine')
+        data_b = request.json.get('converted_machine')
+        test_strings = request.json.get('test_strings', [])
+        
+        machine_a = deserialize_machine(data_a)
+        machine_b = deserialize_machine(data_b)
+        
+        report = verify_equivalence(machine_a, machine_b, test_strings)
+        return jsonify(report)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
+if __name__ == '__main__':
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port)
+
+
+
+
